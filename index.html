@@ -1,0 +1,310 @@
+<!doctype html>
+<html lang="en"> 
+ <head> 
+  <meta charset="UTF-8"> 
+  <title> Raja-Toolkit </title> 
+  <meta name="viewport" content="width=device-width, initial-scale=1"> 
+  <style>
+:root{
+  --accent:#00ff80;
+  --dark:#000;
+  --card:#0a0f0a;
+  font-family: Arial, Helvetica, sans-serif;
+}
+*{box-sizing:border-box;}
+body,html{
+  margin:0;
+  padding:0;
+  color:var(--accent);
+  background:black;
+  overflow-y:auto;
+  overflow-x:hidden;
+  height:100%;
+}
+.page{
+  position:absolute;
+  inset:0;
+  display:flex;
+  justify-content:center;
+  align-items:center;
+  padding:20px;
+}
+.hidden{display:none;}
+.card{
+  background:rgba(0,0,0,0.6);
+  padding:25px;
+  border-radius:12px;
+  border:1px solid rgba(0,255,150,0.2);
+  max-width:900px;
+  width:100%;
+  z-index:3;
+  max-height:calc(100vh - 60px);
+  overflow:auto;
+}
+input, textarea{
+  width:100%;
+  padding:10px;
+  margin:8px 0;
+  border-radius:8px;
+  border:1px solid rgba(0,255,150,0.3);
+  background:black;
+  color:var(--accent);
+}
+button{
+  padding:10px 15px;
+  border:none;
+  background:var(--accent);
+  color:black;
+  font-weight:bold;
+  border-radius:8px;
+  cursor:pointer;
+}
+.grid{
+  display:grid;
+  grid-template-columns:repeat(auto-fill, minmax(150px, 1fr));
+  gap:12px;
+  margin-top:20px;
+}
+.slot{
+  background:rgba(0,0,0,0.4);
+  border:1px solid rgba(0,255,150,0.2);
+  border-radius:12px;
+  padding:12px;
+  min-height:150px;
+  cursor:pointer;
+  text-align:center;
+  user-select:none;
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+}
+.slot:hover{
+  background:rgba(0,255,150,0.08);
+}
+#modal{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,0.6);
+  display:none;
+  justify-content:center;
+  align-items:center;
+  z-index:10;
+}
+.modal-box{
+  background:#001400;
+  padding:20px;
+  border-radius:12px;
+  width:90%;
+  max-width:500px;
+  border:1px solid rgba(0,255,150,0.3);
+}
+textarea{
+  height:120px;
+}
+.slot.dragging{
+  opacity:0.3;
+}
+</style> 
+ </head> 
+ <body> 
+  <canvas id="binary"></canvas> <!-- LOGIN PAGE --> 
+  <div id="login" class="page"> 
+   <div class="card"> 
+    <h2>Login Here</h2> 
+    <input id="user" type="text" placeholder="Username"> 
+    <input id="pass" type="password" placeholder="Password"> <button onclick="login()">Login</button> 
+   </div> 
+  </div> <!-- DISCLAIMER PAGE --> 
+  <div id="disclaimer" class="page hidden"> 
+   <div class="card" style="text-align:center"> 
+    <h2>DISCLAIMER</h2> 
+    <p>Developer is not responsible for misuse. You are responsible for any misuse. </p> <button onclick="continueToApp()">I Understand I take responsibility</button> 
+   </div> 
+  </div> <!-- CONTENT PAGE --> 
+  <div id="content" class="page hidden" style="align-items:flex-start; overflow:auto;"> 
+   <div class="card"> 
+    <h2 id="welcome"></h2> 
+    <p id="mode"></p> 
+    <div id="slots" class="grid"></div> 
+   </div> 
+  </div> <!-- MODAL --> 
+  <div id="modal"> 
+   <div class="modal-box"> 
+    <h3 id="modal-title"></h3> 
+    <input id="slot-name" placeholder="Name"> <textarea id="slot-info" placeholder="Information"></textarea> <!-- Viewer copy button --> <button id="viewerCopyBtn" style="display:none; margin-top:10px; width:100%; padding:12px; font-size:16px;" onclick="viewerCopy()"> 📋 Copy Information </button> <!-- Admin manual paste button --> <button id="adminPasteBtn" style="display:none; margin-top:10px; width:100%; padding:12px; font-size:16px;" onclick="adminManualPaste()"> 📥 Paste Data </button> 
+    <div style="margin-top:10px;"> <button onclick="saveSlot()">Save</button> <button onclick="closeModal()" style="background:black;color:var(--accent);border:1px solid var(--accent);margin-left:10px">Close</button> 
+    </div> 
+   </div> 
+  </div> 
+  <script>
+let role = "";
+let currentSlot = null;
+
+function login(){
+  const user = document.getElementById("user").value || "User";
+  const pass = document.getElementById("pass").value;
+  if(pass === "786"){ role = "viewer"; }
+  else if(pass === "125"){ role = "admin"; }
+  else { return alert("wrong !!!"); }
+
+  localStorage.setItem("portalUser", user);
+  localStorage.setItem("portalRole", role);
+
+  document.getElementById("login").classList.add("hidden");
+  document.getElementById("disclaimer").classList.remove("hidden");
+}
+
+function continueToApp(){
+  document.getElementById("disclaimer").classList.add("hidden");
+  document.getElementById("content").classList.remove("hidden");
+  document.getElementById("welcome").textContent = "Welcome " + localStorage.getItem("portalUser");
+  document.getElementById("mode").textContent = "Mode: " + localStorage.getItem("portalRole").toUpperCase();
+  loadSlots();
+}
+
+/* INIT STORAGE */
+if(!localStorage.getItem("slots")){
+  const empty=[];
+  for(let i=0;i<40;i++) empty.push({name:"Slot "+(i+1),info:""});
+  localStorage.setItem("slots",JSON.stringify(empty));
+}
+
+/* LOAD SLOTS */
+function loadSlots(){
+  const container=document.getElementById("slots");
+  container.innerHTML="";
+  const slots=JSON.parse(localStorage.getItem("slots"));
+
+  slots.forEach((s,i)=>{
+    const div=document.createElement("div");
+    div.className="slot";
+    div.draggable=true;
+    div.innerHTML=`<b>${s.name}</b><br><small>${s.info ? "Click to view" : "Empty"}</small>`;
+    div.onclick=()=>openSlot(i);
+    container.appendChild(div);
+  });
+}
+
+/* OPEN SLOT */
+function openSlot(i){
+  currentSlot=i;
+  const slots=JSON.parse(localStorage.getItem("slots"));
+  const slot=slots[i];
+
+  document.getElementById("modal").style.display="flex";
+  document.getElementById("modal-title").textContent="Slot "+(i+1);
+
+  const nameEl=document.getElementById("slot-name");
+  const infoEl=document.getElementById("slot-info");
+
+  nameEl.value=slot.name;
+  infoEl.value=slot.info;
+
+  const roleNow=localStorage.getItem("portalRole");
+
+  if(roleNow==="viewer"){
+    nameEl.readOnly=true;
+    infoEl.readOnly=true;
+    document.getElementById("viewerCopyBtn").style.display="block";
+    document.getElementById("adminPasteBtn").style.display="none";
+  } else {
+    nameEl.readOnly=false;
+    infoEl.readOnly=false;
+    document.getElementById("viewerCopyBtn").style.display="none";
+    document.getElementById("adminPasteBtn").style.display="block";
+  }
+}
+
+/* VIEWER COPY - fully compatible fallback */
+function viewerCopy(){
+  const text = document.getElementById("slot-info").value.trim();
+  if(!text){
+    alert("No information to copy 😓.");
+    return;
+  }
+
+  // Try modern API first
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(()=>{
+      alert("Information copied Enjoy 👻");
+    }).catch(fallbackCopy);
+  } else fallbackCopy();
+
+  function fallbackCopy(){
+    const temp = document.createElement("textarea");
+    temp.value = text;
+    document.body.appendChild(temp);
+    temp.select();
+    try {
+      document.execCommand("copy");
+      alert("Information copied!!! Now enjoy 🖤");
+    } catch {
+      alert("Copy failed 😓 — cannot access clipboard.");
+    }
+    document.body.removeChild(temp);
+  }
+}
+
+/* ADMIN MANUAL PASTE */
+function adminManualPaste(){
+  const infoEl=document.getElementById("slot-info");
+  infoEl.focus();
+  alert("Press Ctrl+V (or Cmd+V on Mac) to paste your clipboard content manually into the textarea.");
+}
+
+/* SAVE SLOT */
+function saveSlot(){
+  if(localStorage.getItem("portalRole")!=="admin"){
+    closeModal();
+    return;
+  }
+  const slots=JSON.parse(localStorage.getItem("slots"));
+  slots[currentSlot].name=document.getElementById("slot-name").value;
+  slots[currentSlot].info=document.getElementById("slot-info").value;
+  localStorage.setItem("slots",JSON.stringify(slots));
+  closeModal();
+  loadSlots();
+}
+
+function closeModal(){
+  document.getElementById("modal").style.display="none";
+}
+
+/* PREVENT VIEWER PASTE */
+document.addEventListener("paste", function(e){
+  const r = localStorage.getItem("portalRole");
+  if(r !== "admin"){
+    e.preventDefault();
+  }
+});
+document.addEventListener("cut", e => e.preventDefault());
+
+/* BINARY RAIN */
+const canvas=document.getElementById("binary");
+const ctx=canvas.getContext("2d");
+function resizeCanvas(){ canvas.height=window.innerHeight; canvas.width=window.innerWidth; }
+resizeCanvas(); window.addEventListener('resize',resizeCanvas);
+
+const letters="01";
+const fontSize=16;
+let columns=Math.floor(canvas.width/fontSize);
+let drops=[];
+function resetDrops(){ columns=Math.floor(canvas.width/fontSize); drops=Array(columns).fill(1); }
+resetDrops();
+
+function draw(){
+  ctx.fillStyle="rgba(0,0,0,0.08)";
+  ctx.fillRect(0,0,canvas.width,canvas.height);
+  ctx.fillStyle="#00ff80";
+  ctx.font=fontSize+"px monospace";
+  for(let i=0;i<drops.length;i++){
+    const text=letters[Math.floor(Math.random()*letters.length)];
+    ctx.fillText(text,i*fontSize,drops[i]*fontSize);
+    if(drops[i]*fontSize>canvas.height && Math.random()>0.95){ drops[i]=0; }
+    drops[i]++;
+  }
+}
+setInterval(draw,40);
+</script> 
+ 
+</body></html>
